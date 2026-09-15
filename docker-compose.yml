@@ -1,0 +1,72 @@
+x-chat: &chat
+  build: .
+  environment: &chat-env
+    NODE_ENV: production
+    DATABASE_URL: postgresql://pulse:pulse@db:5432/pulse
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: dev-only-secret-please-change-me-32-bytes
+    LOG_LEVEL: info
+    SENTRY_DSN: ${SENTRY_DSN:-}
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: pulse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pulse']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - '6379:6379'
+
+  # Two identical instances. Open http://localhost:3001 in one tab and :3002 in another to
+  # watch messages cross instances via Redis; http://localhost:3000 goes through nginx.
+  chat-1:
+    <<: *chat
+    environment:
+      <<: *chat-env
+      INSTANCE_ID: chat-1
+    ports:
+      - '3001:3000'
+
+  chat-2:
+    <<: *chat
+    environment:
+      <<: *chat-env
+      INSTANCE_ID: chat-2
+    ports:
+      - '3002:3000'
+
+  lb:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '3000:80'
+    depends_on:
+      - chat-1
+      - chat-2
+
+volumes:
+  pgdata:

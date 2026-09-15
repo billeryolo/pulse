@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pulse</title>
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #fff; --ink: #1c1c21; --ink-2: #66656e; --line: #e5e3dc;
+    --accent: #3b4fd8; --accent-soft: #e8ebfb; --ok: #2f8f5b; --warn: #c2731c; --danger: #b8322e;
+    --me: #e8ebfb; --them: #f2f1ec; --radius: 12px;
+    font: 15px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+  header { display: flex; align-items: center; gap: .9rem; padding: .7rem 1.2rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+  .brand i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); display: inline-block; box-shadow: 0 0 0 4px var(--accent-soft); }
+  .status { margin-left: auto; font-size: .82rem; color: var(--ink-2); display: flex; gap: .8rem; align-items: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--ink-2); margin-right: .3rem; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); animation: pulse 1s infinite; } .dot.bad { background: var(--danger); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  code { font: .85em ui-monospace, Menlo, monospace; background: var(--line); padding: .05em .35em; border-radius: 4px; }
+  main { display: grid; grid-template-columns: 240px 1fr 200px; min-height: 0; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); padding: 1rem; overflow: auto; }
+  aside.right { border-right: 0; border-left: 1px solid var(--line); }
+  h4 { margin: 0 0 .6rem; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+  .rooms button { display: block; width: 100%; text-align: left; font: inherit; padding: .45rem .6rem; border: 0; background: none; border-radius: 8px; cursor: pointer; color: var(--ink); }
+  .rooms button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .rooms button small { color: var(--ink-2); float: right; }
+  .members li { list-style: none; padding: .2rem 0; display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+  .members { padding: 0; margin: 0; }
+  .chat { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+  .chat-head { padding: .8rem 1.2rem; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .chat-head small { color: var(--ink-2); }
+  .messages { overflow: auto; padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: .35rem; }
+  .msg { max-width: 68%; padding: .5rem .8rem; border-radius: var(--radius); background: var(--them); align-self: flex-start; }
+  .msg.me { background: var(--me); align-self: flex-end; }
+  .msg .who { font-size: .75rem; color: var(--ink-2); margin-bottom: .1rem; }
+  .msg .meta { font-size: .7rem; color: var(--ink-2); text-align: right; margin-top: .15rem; }
+  .msg.pending { opacity: .6; }
+  .ticks { color: var(--accent); }
+  .typing { padding: 0 1.2rem .3rem; font-size: .8rem; color: var(--ink-2); min-height: 1.3rem; font-style: italic; }
+  form.compose { display: flex; gap: .5rem; padding: .8rem 1.2rem; border-top: 1px solid var(--line); background: var(--panel); }
+  input, button.primary { font: inherit; padding: .55rem .8rem; border-radius: 8px; border: 1px solid var(--line); }
+  input { flex: 1; } input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; font-weight: 600; }
+  .login { grid-column: 1 / -1; display: grid; place-items: center; }
+  .login form { background: var(--panel); padding: 2rem; border-radius: var(--radius); border: 1px solid var(--line); display: flex; flex-direction: column; gap: .8rem; width: 320px; }
+  .banner { background: #fff4e5; color: var(--warn); font-size: .85rem; padding: .4rem 1.2rem; display: none; }
+  .banner.show { display: block; }
+  .newroom { display: flex; gap: .3rem; margin-top: .8rem; } .newroom input { min-width: 0; font-size: .85rem; padding: .35rem .5rem; }
+  .sys { align-self: center; font-size: .75rem; color: var(--ink-2); }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><i></i>Pulse</span>
+  <span class="status">
+    <span id="conn"><span class="dot"></span>offline</span>
+    <span id="instance"></span>
+    <span id="whoami"></span>
+  </span>
+</header>
+<div class="banner" id="banner"></div>
+<main id="app">
+  <div class="login">
+    <form id="login">
+      <h3 style="margin:0">Pick a name</h3>
+      <input id="username" placeholder="username (a-z, 0-9, _)" autofocus required pattern="[a-z0-9_]{2,32}" />
+      <button class="primary">Join</button>
+      <small style="color:var(--ink-2)">Open a second tab as someone else to see presence, typing and read receipts. Connect tabs to different ports (3001 / 3002) to watch Redis fan-out.</small>
+    </form>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $ = (s) => document.querySelector(s)
+const state = { token: null, user: null, rooms: [], roomId: null, messages: [], members: [], online: new Set(), receipts: {}, typing: new Map(), lastId: 0 }
+let socket
+
+// ---------- login ----------
+$('#login').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: $('#username').value }) })
+  if (!res.ok) return alert('invalid username')
+  const { token, user } = await res.json()
+  state.token = token; state.user = user
+  $('#whoami').textContent = '@' + user.username
+  renderShell()
+  connect()
+  await loadRooms()
+})
+
+// ---------- socket ----------
+function connect() {
+  socket = io({ auth: { token: state.token }, transports: ['websocket', 'polling'] })
+  socket.on('connect', () => { setConn('ok', socket.recovered ? 'recovered' : 'online'); $('#banner').classList.remove('show') })
+  socket.on('hello', ({ instance, recovered }) => {
+    $('#instance').innerHTML = 'instance <code>' + instance + '</code>'
+    // Recovered sockets got their missed packets from the adapter; otherwise resync by id.
+    if (state.roomId && !recovered) resync()
+  })
+  socket.on('disconnect', (reason) => { setConn('bad', 'disconnected'); banner('Connection lost (' + reason + '). Reconnecting…') })
+  socket.io.on('reconnect_attempt', (n) => setConn('warn', 'reconnecting #' + n))
+  socket.on('connect_error', (err) => banner(err.message))
+
+  socket.on('message:new', (m) => { if (m.room_id === state.roomId) { push(m); markRead(m.id) } })
+  socket.on('message:read', (e) => { if (e.roomId !== state.roomId) return; state.receipts[e.userId] = Math.max(state.receipts[e.userId] || 0, e.messageId); renderMessages() })
+  socket.on('typing', (e) => {
+    if (e.roomId !== state.roomId || e.userId === state.user.id) return
+    clearTimeout(state.typing.get(e.userId)?.t)
+    if (e.typing) state.typing.set(e.userId, { name: e.username, t: setTimeout(() => { state.typing.delete(e.userId); renderTyping() }, 3000) })
+    else state.typing.delete(e.userId)
+    renderTyping()
+  })
+  socket.on('presence', (e) => { e.online ? state.online.add(e.userId) : state.online.delete(e.userId); renderMembers() })
+  socket.on('room:member', (e) => { if (e.roomId === state.roomId && !state.members.find((m) => m.id === e.user.id)) { state.members.push(e.user); renderMembers() } })
+}
+
+function joinRoom(roomId) {
+  state.roomId = roomId; state.messages = []; state.receipts = {}; state.typing.clear(); state.lastId = 0
+  renderRooms(); renderMessages()
+  socket.emit('room:join', { roomId }, (ack) => {
+    if (!ack.ok) return banner(ack.error)
+    state.members = ack.data.members; state.online = new Set(ack.data.online)
+    for (const r of ack.data.receipts) state.receipts[r.user_id] = r.last_read_message_id
+    for (const m of ack.data.messages) push(m, false)
+    renderMembers(); renderMessages(); scrollDown()
+    const last = state.messages.at(-1); if (last) markRead(last.id)
+  })
+}
+
+function resync() {
+  socket.emit('room:sync', { roomId: state.roomId, afterId: state.lastId }, (ack) => {
+    if (!ack.ok) return
+    if (ack.data.messages.length) sys(ack.data.messages.length + ' message(s) while you were away')
+    for (const m of ack.data.messages) push(m, false)
+    for (const r of ack.data.receipts) state.receipts[r.user_id] = r.last_read_message_id
+    state.online = new Set(ack.data.online)
+    renderMembers(); renderMessages(); scrollDown()
+    const last = state.messages.at(-1); if (last) markRead(last.id)
+  })
+}
+
+function send(body) {
+  const clientMsgId = crypto.randomUUID()
+  const pending = { id: null, clientMsgId, sender_id: state.user.id, sender_name: state.user.username, body, created_at: new Date().toISOString(), pending: true }
+  state.messages.push(pending); renderMessages(); scrollDown()
+  // If the ack never arrives (blip mid-send) the same clientMsgId is re-sent after reconnect;
+  // the server's unique constraint makes that safe.
+  const attempt = () => socket.timeout(5000).emit('message:send', { roomId: state.roomId, body, clientMsgId }, (err, ack) => {
+    if (err) { socket.once('connect', attempt); return }
+    if (!ack.ok) { pending.error = ack.error; renderMessages(); return }
+    Object.assign(pending, ack.data, { pending: false }); state.lastId = Math.max(state.lastId, ack.data.id); renderMessages()
+  })
+  attempt()
+}
+
+function markRead(messageId) { socket.emit('message:read', { roomId: state.roomId, messageId }, () => {}) }
+function push(m, render = true) {
+  if (state.messages.some((x) => x.id === m.id || (m.client_msg_id && x.clientMsgId === m.client_msg_id))) return
+  state.messages.push(m); state.lastId = Math.max(state.lastId, m.id)
+  if (render) { renderMessages(); scrollDown() }
+}
+
+// ---------- typing (debounced) ----------
+let typingTimer = null, isTyping = false
+function onInput() {
+  if (!isTyping) { isTyping = true; socket.emit('typing', { roomId: state.roomId, typing: true }) }
+  clearTimeout(typingTimer)
+  typingTimer = setTimeout(() => { isTyping = false; socket.emit('typing', { roomId: state.roomId, typing: false }) }, 1500)
+}
+
+// ---------- rooms api ----------
+async function loadRooms() {
+  state.rooms = await (await fetch('/api/rooms', { headers: { authorization: 'Bearer ' + state.token } })).json()
+  renderRooms()
+  if (!state.roomId && state.rooms[0] && socket) joinRoom(state.rooms[0].id)
+}
+
+// ---------- rendering ----------
+function renderShell() {
+  $('#app').innerHTML = `
+    <aside><h4>Rooms</h4><div class="rooms" id="rooms"></div>
+      <form class="newroom" id="newroom"><input placeholder="new-room" pattern="[a-z0-9-]{2,64}" required /><button class="primary">+</button></form></aside>
+    <section class="chat">
+      <div class="chat-head" id="head"></div>
+      <div class="messages" id="messages"></div>
+      <div class="typing" id="typing"></div>
+      <form class="compose" id="compose"><input id="body" placeholder="Message…" autocomplete="off" maxlength="4000" /><button class="primary">Send</button></form>
+    </section>
+    <aside class="right"><h4>Members</h4><ul class="members" id="members"></ul></aside>`
+  $('#compose').addEventListener('submit', (e) => { e.preventDefault(); const v = $('#body').value.trim(); if (!v || !state.roomId) return; send(v); $('#body').value = ''; clearTimeout(typingTimer); isTyping = false; socket.emit('typing', { roomId: state.roomId, typing: false }) })
+  $('#body').addEventListener('input', onInput)
+  $('#newroom').addEventListener('submit', async (e) => {
+    e.preventDefault(); const input = e.target.querySelector('input')
+    const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + state.token }, body: JSON.stringify({ name: input.value }) })
+    if (res.status === 201) { input.value = ''; await loadRooms(); joinRoom((await res.json()).id) } else banner('could not create room')
+  })
+}
+function renderRooms() {
+  $('#rooms').innerHTML = state.rooms.map((r) => `<button class="${r.id === state.roomId ? 'active' : ''}" data-id="${r.id}">#${r.name}<small>${r.members}</small></button>`).join('')
+  $('#rooms').querySelectorAll('button').forEach((b) => b.onclick = () => joinRoom(b.dataset.id))
+  const room = state.rooms.find((r) => r.id === state.roomId)
+  $('#head').innerHTML = room ? `<strong>#${room.name}</strong> <small>${room.topic || ''}</small>` : '<small>Pick a room</small>'
+}
+function renderMembers() {
+  $('#members').innerHTML = state.members.map((m) => `<li><span class="dot ${state.online.has(m.id) ? 'ok' : ''}"></span>${m.username}${m.id === state.user.id ? ' (you)' : ''}</li>`).join('')
+}
+function renderMessages() {
+  const others = state.members.filter((m) => m.id !== state.user.id)
+  $('#messages').innerHTML = state.messages.map((m) => {
+    const me = m.sender_id === state.user.id
+    let ticks = ''
+    if (me && m.id) {
+      const readers = others.filter((o) => (state.receipts[o.id] || 0) >= m.id).length
+      ticks = readers ? `<span class="ticks" title="read by ${readers}">✓✓ ${readers > 1 ? readers : ''}</span>` : '✓'
+    }
+    if (m.error) ticks = `<span style="color:var(--danger)">${m.error}</span>`
+    return `<div class="msg ${me ? 'me' : ''} ${m.pending ? 'pending' : ''}">${me ? '' : `<div class="who">${m.sender_name}</div>`}${esc(m.body)}<div class="meta">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${ticks}</div></div>`
+  }).join('')
+}
+function renderTyping() { const names = [...state.typing.values()].map((t) => t.name); $('#typing').textContent = names.length ? names.join(', ') + (names.length > 1 ? ' are' : ' is') + ' typing…' : '' }
+function sys(text) { const el = document.createElement('div'); el.className = 'sys'; el.textContent = text; $('#messages').appendChild(el) }
+function scrollDown() { const el = $('#messages'); el.scrollTop = el.scrollHeight }
+function setConn(cls, text) { $('#conn').innerHTML = `<span class="dot ${cls}"></span>${text}` }
+function banner(text) { const b = $('#banner'); b.textContent = text; b.classList.add('show') }
+function esc(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) }
+</script>
+</body>
+</html>
