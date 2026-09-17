@@ -18,6 +18,11 @@ docker compose up --build
 
 The header of the UI shows which instance the tab is connected to.
 
+## Live on Railway
+
+**https://pulse-production-ea51.up.railway.app** — running in Redis mode (Streams adapter +
+Redis presence) on Railway managed Postgres/Redis; the header shows the instance id.
+
 ---
 
 ## Architecture
