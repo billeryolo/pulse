@@ -11,6 +11,9 @@ export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 export async function bootApp(extra: Record<string, string> = {}): Promise<App> {
   return createApp({
+    // Single-instance (in-memory adapter + presence) unless a test passes REDIS_URL
+    // explicitly; CI exports REDIS_URL globally for the cluster suite.
+    REDIS_URL: undefined as unknown as string,
     NODE_ENV: 'test',
     PORT: '0',
     LOG_LEVEL: 'silent',

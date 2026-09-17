@@ -60,6 +60,20 @@ describe.skipIf(!REDIS_URL)('multi-instance via Redis Streams adapter', () => {
     b.emit('message:read', { roomId, messageId: ack.data!.id }, () => {})
     expect((await read).messageId).toBe(ack.data!.id)
 
+    // A third member joining on instance one is announced to both instances, and sees the
+    // current online set (both alice and bob) in the join ack.
+    const carol = await login(two.url, 'carol')
+    const carolOnline = waitFor(b, 'presence', 5000, (e) => e.userId === carol.userId && e.online)
+    const c = await connectClient(one.url, carol.token)
+    const joined = await joinRoom(c, roomId)
+    expect(joined.ok).toBe(true)
+    expect(joined.data!.online).toEqual(expect.arrayContaining([alice.userId, bob.userId]))
+    expect(await carolOnline).toMatchObject({ username: 'carol', online: true })
+    const fromCarol = waitFor(b, 'message:new')
+    await sendMessage(c, roomId, 'hi from carol')
+    expect((await fromCarol).sender_name).toBe('carol')
+    c.disconnect()
+
     // Presence is global: instance one sees bob leave instance two.
     const bobOffline = waitFor(a, 'presence', 5000, (e) => e.userId === bob.userId && !e.online)
     b.disconnect()
