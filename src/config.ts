@@ -4,7 +4,11 @@ import os from 'node:os'
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(0).default(3000), // 0 = random free port (tests)
-  INSTANCE_ID: z.string().min(1).default(`${os.hostname()}-${process.pid}`),
+  // Railway exposes RAILWAY_REPLICA_ID; other platforms fall back to host+pid.
+  INSTANCE_ID: z
+    .string()
+    .min(1)
+    .default(process.env.RAILWAY_REPLICA_ID ?? `${os.hostname()}-${process.pid}`),
   DATABASE_URL: z.string().url().default('postgresql://pulse:pulse@localhost:5432/pulse'),
   /** Unset → single-instance in-memory adapter/presence (dev + unit tests). */
   REDIS_URL: z.string().url().optional(),
